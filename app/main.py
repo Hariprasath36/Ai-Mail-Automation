@@ -4,23 +4,32 @@ from .services import send_email, generate_ai_content
 
 app = FastAPI()
 
-class EmailRequest(BaseModel):
-    recipient: EmailStr
-    subject: str
-    body: str
+class EmailGenerateAndSendRequest(BaseModel):
+    from_address: EmailStr
+    to_address: EmailStr
+    prompt: str
 
-@app.post("/send_email/")
-async def send_email_api(email_request: EmailRequest):
+@app.post("/generate_and_send_email/")
+async def generate_and_send_email(request: EmailGenerateAndSendRequest):
     try:
-        send_email(email_request.recipient, email_request.subject, email_request.body)
-        return {"message": "Email sent successfully."}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-@app.post("/generate_email/")
-async def generate_email(prompt: str):
-    try:
-        content = generate_ai_content(prompt)
-        return {"generated_content": content}
+        # Generate email content
+        ai_response = generate_ai_content(f"Generate a professional email with subject and body based on this prompt: {request.prompt}")
+        
+        # Parse AI response
+        lines = ai_response.split('\n', 2)
+        if len(lines) < 3:
+            raise ValueError("AI response format is incorrect")
+        
+        subject = lines[0].replace("Subject: ", "").strip()
+        body = lines[2].strip()
+        
+        # Send email
+        send_email(request.from_address, request.to_address, subject, body)
+        
+        return {
+            "message": "Email generated and sent successfully",
+            "subject": subject,
+            "body": body
+        }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
