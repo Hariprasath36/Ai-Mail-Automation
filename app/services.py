@@ -4,6 +4,7 @@ from email.mime.multipart import MIMEMultipart
 from dotenv import load_dotenv
 import os
 from openai import OpenAI
+import re
 
 # Load environment variables from .env file
 load_dotenv()
@@ -17,50 +18,62 @@ def get_openai_client():
     
     return OpenAI(base_url=endpoint, api_key=token)
 
-def generate_and_send_email(from_address: str, to_address: str, email_type: str):
+def generate_and_send_email(from_address: str, to_address: str, prompt: str):
     client = get_openai_client()
 
-    # Generate questions
-    questions_response = client.chat.completions.create(
-        messages=[
-            {
-                "role": "system",
-                "content": "You are an assistant that generates questions to fill in an email template. Provide a list of questions max 5, one per line.",
-            },
-            {
-                "role": "user",
-                "content": f"Generate questions to fill in a {email_type} email template.",
-            }
-        ],
-        model="gpt-4o",
-    )
-    questions = questions_response.choices[0].message.content.strip().split('\n')
+    # Step 1: Generate the email template
+    try:
+        template_response = client.chat.completions.create(
+            messages=[
+                {
+                    "role": "system",
+                    "content": "You are an assistant that generates email templates with placeholders in square brackets.",
+                },
+                {
+                    "role": "user",
+                    "content": f"Generate an email template for the following request: {prompt}",
+                }
+            ],
+            model="gpt-4o",
+        )
+        template = template_response.choices[0].message.content.strip()
+    except Exception as e:
+        raise Exception(f"Error generating email template: {e}")
 
-    # Collect answers from the user
-    answers = []
-    for question in questions:
-        answer = input(f"{question}: ")
-        answers.append(answer)
+    # Step 2: Extract placeholders from the template
+    placeholders = re.findall(r"\[([^\]]+)\]", template)
 
-    # Generate email content
-    content_response = client.chat.completions.create(
-        messages=[
-            {
-                "role": "system",
-                "content": "You are an assistant that generates professional emails based on user inputs. Provide the email in the following format:\nSubject: [Email Subject]\n\n[Email Body]",
-            },
-            {
-                "role": "user",
-                "content": f"Generate a {email_type} email using these answers: {', '.join(answers)}",
-            }
-        ],
-        model="gpt-4o",
-    )
-    content = content_response.choices[0].message.content.strip()
-    subject, body = content.split('\n\n', 1)
-    subject = subject.replace('Subject: ', '')
+    # Step 3: Ask detailed questions for each placeholder dynamically
+    questions = []
+    for placeholder in placeholders:
+        question = f"Please provide the value for '{placeholder}' (one word only):"
+        questions.append(question)
 
-    # Send email
+    # Step 4: Collect user responses
+    answers = {}
+    for question, placeholder in zip(questions, placeholders):
+        while True:
+            print(question)
+            answer = input().strip()
+            if len(answer.split()) == 1:  # Ensure one-word answer
+                answers[placeholder] = answer
+                break
+            else:
+                print("Please provide a one-word answer.")
+
+    # Step 5: Fill the template with user responses
+    filled_template = template
+    for placeholder, answer in answers.items():
+        filled_template = filled_template.replace(f"[{placeholder}]", answer)
+
+    # Extract subject and body
+    try:
+        subject, body = filled_template.split('\n\n', 1)
+        subject = subject.replace('Subject: ', '')
+    except ValueError:
+        raise Exception("Error parsing filled template into subject and body.")
+
+    # Step 6: Send email
     smtp_server = "smtp.gmail.com"
     port = 587
     sender_password = os.getenv('sender_password')

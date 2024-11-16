@@ -7,12 +7,16 @@ app = FastAPI()
 class EmailRequest(BaseModel):
     from_address: EmailStr
     to_address: EmailStr
-    email_type: str
+    prompt: str  # A user prompt for generating the email
 
 @app.post("/generate_and_send_email/")
 async def api_generate_and_send_email(request: EmailRequest):
     try:
-        result = generate_and_send_email(request.from_address, request.to_address, request.email_type)
+        result = generate_and_send_email(
+            request.from_address, 
+            request.to_address, 
+            request.prompt
+        )
         return result
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
