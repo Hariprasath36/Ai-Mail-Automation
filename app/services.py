@@ -35,7 +35,7 @@ def send_email(recipient: str, subject: str, body: str):
 # AI Content Generator
 def generate_ai_content(prompt: str) -> str:
     import openai
-    openai.api_key = "your_openai_api_key"
+    openai.api_key = "BjRU1EcfqFynQGI32OCP7TasIMSGs4"
     response = openai.Completion.create(
         model="text-davinci-003",
         prompt=prompt,
